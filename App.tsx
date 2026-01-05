@@ -14,6 +14,8 @@ const EASING_FACTOR = 0.1; // How smoothly it follows the mouse
 const SHAKE_INTENSITY = 1.5; // How much it vibrates
 const GLOW_BLUR = 15; // The size of the glow effect
 const GIF_DURATION = 10000; // 10 seconds in ms
+const PULSE_AMPLITUDE = 5; // How many pixels the radius will change by
+const PULSE_SPEED = 0.005; // Controls the speed of the pulsation
 
 type GifStatus = 'idle' | 'recording' | 'rendering' | 'error';
 
@@ -22,6 +24,7 @@ const App: React.FC = () => {
     const [radius, setRadius] = useState(INITIAL_RADIUS);
     const [backgroundFadeColor, setBackgroundFadeColor] = useState(NORMAL_FADE_COLOR);
     const [gifStatus, setGifStatus] = useState<GifStatus>('idle');
+    const [isPulsating, setIsPulsating] = useState(false);
 
     const circlePosRef = useRef({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
     const mousePosRef = useRef({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
@@ -39,6 +42,8 @@ const App: React.FC = () => {
                 setBackgroundFadeColor(LONG_TAIL_FADE_COLOR);
             } else if (event.key === '0') {
                 setBackgroundFadeColor(NORMAL_FADE_COLOR);
+            } else if (event.key === '3') {
+                setIsPulsating(prev => !prev);
             } else if (event.key === 'g') {
                 if (gifStatus !== 'idle') {
                     console.warn('Cannot start recording, current status:', gifStatus);
@@ -77,7 +82,7 @@ const App: React.FC = () => {
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = 'wuslon.gif';
+                    a.download = 'zini.gif';
                     document.body.appendChild(a);
                     a.click();
                     document.body.removeChild(a);
@@ -156,6 +161,10 @@ const App: React.FC = () => {
 
             const shakeX = (Math.random() - 0.5) * SHAKE_INTENSITY * 2;
             const shakeY = (Math.random() - 0.5) * SHAKE_INTENSITY * 2;
+            
+            const pulseOffset = isPulsating ? Math.sin(Date.now() * PULSE_SPEED) * PULSE_AMPLITUDE : 0;
+            const currentRadius = radius + pulseOffset;
+
 
             ctx.shadowBlur = GLOW_BLUR;
             ctx.shadowColor = CIRCLE_COLOR;
@@ -165,7 +174,7 @@ const App: React.FC = () => {
             ctx.arc(
                 circlePosRef.current.x + shakeX, 
                 circlePosRef.current.y + shakeY, 
-                radius, 
+                currentRadius, 
                 0, 
                 Math.PI * 2
             );
@@ -190,7 +199,7 @@ const App: React.FC = () => {
             }
             window.removeEventListener('resize', resizeCanvas);
         };
-    }, [radius, backgroundFadeColor, gifStatus]);
+    }, [radius, backgroundFadeColor, gifStatus, isPulsating]);
 
     const renderGifStatus = () => {
         switch (gifStatus) {
@@ -217,6 +226,7 @@ const App: React.FC = () => {
           }}>
               <div>Radius: {radius} ([+]/[-])</div>
               <div>Tail: {backgroundFadeColor === NORMAL_FADE_COLOR ? 'Normal' : 'Long'} ([0]/[1])</div>
+              <div>Pulsate: {isPulsating ? 'On' : 'Off'} ([3])</div>
               <div>Record GIF: [g]</div>
               {renderGifStatus()}
           </div>
