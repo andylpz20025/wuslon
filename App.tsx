@@ -30,7 +30,7 @@ const App: React.FC = () => {
 
     // Effect to set up all window event listeners
     useEffect(() => {
-        const handleKeyDown = (event: KeyboardEvent) => {
+        const handleKeyDown = async (event: KeyboardEvent) => {
             if (event.key === '+' || event.key === '=') {
                 setRadius(prev => prev + RADIUS_STEP);
             } else if (event.key === '-') {
@@ -50,13 +50,26 @@ const App: React.FC = () => {
                     return;
                 }
                 
+                // Fix for cross-origin worker error: fetch worker script and create a local blob URL.
+                let workerObjectURL: string | null = null;
+                try {
+                    const workerScriptResponse = await fetch('https://esm.sh/gif.js.optimized/dist/gif.worker.js');
+                    if (!workerScriptResponse.ok) throw new Error('Network response was not ok.');
+                    const workerScriptBlob = new Blob([await workerScriptResponse.text()], { type: 'application/javascript' });
+                    workerObjectURL = URL.createObjectURL(workerScriptBlob);
+                } catch (error) {
+                    console.error("Failed to fetch or create GIF worker script:", error);
+                    alert("Could not initialize the GIF recorder. Please check your internet connection and console for errors.");
+                    return;
+                }
+
                 console.log(`Starting GIF recording for ${GIF_DURATION / 1000} seconds...`);
                 setGifStatus('recording');
 
                 const gif = new GIF({
                     workers: 2,
                     quality: 10, // Lower is better quality
-                    workerScript: 'https://esm.sh/gif.js.optimized/dist/gif.worker.js'
+                    workerScript: workerObjectURL,
                 });
 
                 gif.on('finished', (blob: Blob) => {
@@ -69,6 +82,12 @@ const App: React.FC = () => {
                     a.click();
                     document.body.removeChild(a);
                     URL.revokeObjectURL(url);
+                    
+                    // Clean up the worker blob URL to prevent memory leaks
+                    if (workerObjectURL) {
+                        URL.revokeObjectURL(workerObjectURL);
+                    }
+                    
                     gifRecorderRef.current = null;
                     setGifStatus('idle');
                 });
@@ -82,6 +101,9 @@ const App: React.FC = () => {
                         gifRecorderRef.current.render();
                     } else {
                         setGifStatus('idle');
+                        if (workerObjectURL) {
+                            URL.revokeObjectURL(workerObjectURL);
+                        }
                     }
                 }, GIF_DURATION);
             }
