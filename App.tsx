@@ -18,30 +18,31 @@ const PULSE_AMPLITUDE = 5; // How many pixels the radius will change by
 const PULSE_SPEED = 0.005; // Controls the speed of the pulsation
 const PINCH_SENSITIVITY = 1; // Controls how sensitive pinch-to-zoom is
 
-type GifStatus = 'idle' | 'recording' | 'rendering' | 'error';
-type FacingMode = 'user' | 'environment';
+// --- Embedded GIF Worker Script ---
+// This makes GIF creation reliable and offline-capable by removing the external network dependency.
+const GIF_WORKER_SCRIPT = `'use strict';var NeuQuant=function(){function t(t,e){var i;for(this.netsize=256,this.samplefac=10,this.network=new Array(this.netsize),this.netindex=new Array(256),this.bias=new Array(this.netsize),this.freq=new Array(this.netsize),this.radpower=new Array(this.netsize>>3),i=0;i<this.netsize;i++)this.network[i]=new Array(4),this.network[i][0]=this.network[i][1]=this.network[i][2]=i<<12-4,this.freq[i]=256,this.bias[i]=0;this.pixels=t,this.lengthcount=e,this.init()}return t.prototype={colorMap:function(){var t,e,i,r,s,n,a,o,h;for(t=new Array(this.netsize),e=new Array(this.netsize*3),h=0,i=0;i<this.netsize;i++)s=this.network[i],n=i,a=s[0],o=s[1],r=s[2],t[n]={r:a,g:o,b:r,i:n},e[3*h+0]=a,e[3*h+1]=o,e[3*h+2]=r,h++;return{map:t,palette:e}},init:function(){var t,e,i,r;for(t=0;t<this.netsize;t++)e=this.network[t],e[0]=e[1]=e[2]=(t<<4)/this.netsize,this.freq[t]=256/this.netsize,this.bias[t]=0;for(t=0;t<this.netsize;t++)e=this.network[t],i=t,r=e[1],e[0],e[2]},learn:function(){var t,e,i,r,s,n,a,o,h,u,f,c;for(this.lengthcount<1509&&(this.samplefac=1),this.alphadec=30+(this.samplefac-1)/3,c=this.pixels,f=this.lengthcount,u=f/this.samplefac,h=0,o=0,t=0;t<u;)if(i=(c[o]<<4)+c[o+1],r=c[o+2],s=c[o+3],n=this.contest(i,r,s),this.altersingle(this.alpha,n,i,r,s),0!==t&&(a=this.specialFind(i,r,s),n=this.contest(a[1],a[2],a[3]),this.alterneigh(this.radius,n,i,r,s)),o+=this.samplefac*4,o>=f&&(o-=f),t++,0===h&&(h=1,this.radius=this.initrad*(this.netsize-t)/this.netsize,this.alpha=this.initalpha*(f-o*4)/(f*4)),0===t%this.samplefac){for(this.alpha-=this.alpha/this.alphadec,this.radius-=this.radius/30,this.radius<1&&(this.radius=1),e=0;e<t;e++)this.freq[e]<=1&&(this.freq[e]+=1);for(e=t;e<this.netsize;e++)this.freq[e]-=this.freq[e]/1024}},map:function(t,e,i){var r,s,n,a,o,h;for(h=1e3,o=-1,r=this.netindex[e],s=r-1;r<this.netsize||s>=0;){if(r<this.netsize){if(n=this.network[r],(a=n[1]-e)<0&&(a=-a),a<h)if(r++,a<h){if((a=n[0]-t)<0&&(a=-a),a<h)if((a=n[2]-i)<0&&(a=-a),a<h)h=a,o=n[3]}else break}if(s>=0){if(n=this.network[s],(a=e-n[1])<0&&(a=-a),a<h)if(s--,a<h){if((a=t-n[0])<0&&(a=-a),a<h)if((a=i-n[2])<0&&(a=-a),a<h)h=a,o=n[3]}else break}}return o}},buildColormap:function(){this.learn(),this.fix(),this.inxbuild()},inxbuild:function(){var t,e,i,r,s,n;for(t=0,e=0;t<this.netsize;t++){for(s=this.network[t],i=t,r=-1,n=s[1],e;e<n;e++)this.netindex[e]=i;s[3]=i,s[0],s[2]}this.netindex[e]=i},fix:function(){var t,e,i,r,s;for(t=0;t<this.netsize;t++)for(e=0;e<4;e++)s=this.network[t][e],s<0&&(s=0),s>255&&(s=255),this.network[t][e]=s;for(t=0;t<this.netsize;t++)for(i=t+1;i<this.netsize;i++)this.network[t][1]===this.network[i][1]&&(r=this.network[t],this.network[t]=this.network[i],this.network[i]=r)},altersingle:function(t,e,i,r,s){var n;n=this.network[e],n[0]-=(t*(n[0]-i))/this.initalpha,n[1]-=(t*(n[1]-r))/this.initalpha,n[2]-=(t*(n[2]-s))/this.initalpha},alterneigh:function(t,e,i,r,s){var n,a,o,h,u,f;for(f=e-t,f< -1&&(f=-1),u=e+t,u>this.netsize&&(u=this.netsize),h=e+1,o=e-1,n=1;h<u||o>f;)a=this.radpower[n++],h<u&&(this.altersingle(a,h++,i,r,s)),o>f&&(this.altersingle(a,o--,i,r,s))},contest:function(t,e,i){var r,s,n,a,o,h,u;for(u=2147483647,h=u,o=-1,a=-1,r=0;r<this.netsize;r++)n=this.network[r],s=n[0]-t,s<0&&(s=-s),s=n[1]-e,s<0&&(s=-s),s<u&&(s=n[2]-i,s<0&&(s=-s),s<u&&(u=s,o=r));return(s=this.freq[o]/256)<h&&(h=s,a=o),this.freq[o]--,this.bias[o]+=h<<11-4,this.freq[a]++,this.bias[a]-=h<<11-4,a},specialFind:function(t,e,i){var r,s,n,a,o,h;for(h=2147483647,o=-1,r=0;r<this.netsize;r++)n=this.network[r],s=n[0]-t,s<0&&(s=-s),s=n[1]-e,s<0&&(s=-s),s<h&&(s=n[2]-i,s<0&&(s=-s),s<h&&(h=s,o=r));return o}},t}();var LZWEncoder=function(){function t(t,i,r,s){var n,a,o,h,u,f,c;for(this.width=t,this.height=i,this.pixels=r,this.color_depth=s,this.num_pixels=t*i,this.img_width=t,this.img_height=i,this.pix_array=r,this.init_code_size=s,this.a_count=0,this.accum=new Array(256),this.htab=new Array(5003),this.codetab=new Array(5003),this.cur_accum=0,this.cur_bits=0,this.free_ent=0,this.g_init_bits=0,this.maxcode=0,this.clear_flg=!1,this.n_bits=0,this.maxbits=12,this.maxmaxcode=1<<this.maxbits,this.EOFCode=-1,this.bytes=new Array(256),this.cur_byte=0,this.cur_accum=0,this.cur_bits=0,h=this.width*this.height,n=0,o=h;n<o;){u=this.pixels[n],f=255&u,c=u>>8,a=this.pixels[n+1],n+=2}this.compress(this.init_code_size+1,this.bytes)}return t.prototype={char_out:function(t,e){return e.push(t)},cl_block:function(t){return this.cl_hash(this.htab.length,t),this.free_ent=this.ClearCode+2,this.clear_flg=!0,this.output(this.ClearCode,t)},cl_hash:function(t,e){var i;for(i=0;i<t;i++)e.htab[i]=-1;return t},compress:function(t,e){var i,r,s,n,a,o,h,u;for(this.g_init_bits=t,this.clear_flg=!1,this.n_bits=this.g_init_bits,this.maxcode=this.get_maxcode(this.n_bits),this.ClearCode=1<<t-1,this.EOFCode=this.ClearCode+1,this.free_ent=this.ClearCode+2,this.a_count=0,s=this.next_pixel(),h=0,o=this.htab.length;h<o;h++)this.htab[h]= -1;if(u=this.htab.length,this.cl_hash(u,this),this.output(this.ClearCode,e),this.EOFCode,void 0){for(;void 0!==(n=this.next_pixel());){if(i=s,r=n,a=(r<<this.maxbits)+i,(o=i<<8^r)===a?this.htab[o]===a?this.codetab[o]:(h=5003-o,o>=h?this.htab[h]===a?this.codetab[h]:o=this.cl_block(e)):this.htab[o]=-1):s=r}this.output(s,e),this.output(this.EOFCode,e)}},output:function(t,e){for(this.cur_accum&=this.masks[this.cur_bits],this.cur_bits>0?this.cur_accum|=t<<this.cur_bits:this.cur_accum=t,this.cur_bits+=this.n_bits;this.cur_bits>=8;)this.char_out(255&this.cur_accum,e),this.cur_accum>>=8,this.cur_bits-=8;return this.free_ent>this.maxcode||this.clear_flg?this.clear_flg?this.n_bits=this.g_init_bits:this.n_bits++:(this.n_bits>this.maxbits&&(this.n_bits=this.maxbits),0),t},get_maxcode:function(t){return(1<<t)-1},next_pixel:function(){return 0===this.count?this.EOFCode:(this.count--,255&this.cur_pixel)},masks:[0,1,3,7,15,31,63,127,255,511,1023,2047,4095,8191,16383,32767,65535]},t}(),GIFEncoder=function(){function t(t){this.data=t,this.width=t.width,this.height=t.height,this.transparent=t.transparent,this.transIndex=0,this.repeat=t.repeat,this.delay=t.delay,this.image=t.image,this.pixels=null,this.indexedPixels=null,this.colorDepth=null,this.colorTab=null,this.usedEntry=new Array,this.palSize=7,this.dispose=-1,this.firstFrame=!0,this.sample=10,this.dither=!1,this.out=new ByteArray}return t.prototype={getImagePixels:function(){return this.pixels=new Uint8Array(this.width*this.height*3),this.pixels},analyzePixels:function(){var t,e,i,r;for(this.pixels=this.getImagePixels(),this.indexedPixels=new Uint8Array(this.width*this.height),t=new NeuQuant(this.pixels,this.pixels.length,this.sample),e=t.colorMap(),t.buildColormap(),this.colorTab=e.palette,this.colorDepth=1,i=1;i<this.colorTab.length;i<<=1)this.colorDepth++;for(this.palSize=1,i=0;i<this.colorDepth;i++)this.palSize*=2;if(this.colorDepth>8&&(this.colorDepth=8),this.palSize=1,i=0;i<this.colorDepth;i++)this.palSize*=2;for(this.transparent>=0&&(this.transIndex=this.findClosest(this.transparent,this.colorTab,!0)),i=0,r=0;r<this.width*this.height;r++)this.indexedPixels[r]=this.findClosest(this.pixels[3*r],this.pixels[3*r+1],this.pixels[3*r+2])},findClosest:function(t,e,i,r){var s,n,a,o;if(null===this.colorTab)return-1;for(255===t&&0===e&&0===i&&(t=254),o=2147483647,a=-1,s=0;s<this.colorTab.length;s+=3)n=t-this.colorTab[s],n=e-this.colorTab[s+1],n=i-this.colorTab[s+2],(n=n*n)<o&&(o=n,a=s/3);return a},writeLSD:function(){this.out.writeShort(this.width),this.out.writeShort(this.height),this.out.writeByte(128|this.palSize),this.out.writeByte(0),this.out.writeByte(0)},writePalette:function(){var t,e;for(this.out.writeBytes(this.colorTab),t=3*Math.pow(2,this.palSize),e=t;e<768;e++)this.out.writeByte(0)},writeNetscapeExt:function(){this.out.writeByte(33),this.out.writeByte(255),this.out.writeByte(11),this.out.writeString("NETSCAPE2.0"),this.out.writeByte(3),this.out.writeByte(1),this.out.writeShort(this.repeat),this.out.writeByte(0)},writeGraphicCtrlExt:function(){var t;this.out.writeByte(33),this.out.writeByte(249),this.out.writeByte(4),t=0,this.transparent>=0&&(t=1),this.dispose>=0&&(t=this.dispose<<2),this.out.writeByte(t),this.out.writeShort(this.delay),this.out.writeByte(this.transIndex),this.out.writeByte(0)},writeImageDesc:function(){this.out.writeByte(44),this.out.writeShort(0),this.out.writeShort(0),this.out.writeShort(this.width),this.out.writeShort(this.height),this.firstFrame?this.out.writeByte(0):this.out.writeByte(128|this.palSize)},writePixels:function(){var t,e;for(t=new LZWEncoder(this.width,this.height,this.indexedPixels,this.colorDepth),this.out.writeByte(t.initCodeSize),e=t.pixels,this.out.writeBytes(e),this.out.writeByte(0)},encode:function(){var t;return this.out.writeString("GIF89a"),this.writeLSD(),this.writePalette(),-1!==this.repeat&&this.writeNetscapeExt(),this.writeGraphicCtrlExt(),this.writeImageDesc(),this.firstFrame||this.writePalette(),this.writePixels(),this.firstFrame=!1,t=this.out.data}},t}();var ByteArray=function(){this.page=-1,this.pages=[],this.newPage()};ByteArray.prototype={page:[new Uint8Array(256),256],newPage:function(){this.pages[++this.page]=new Uint8Array(256),this.pos=0},getData:function(){var t,e,i;for(e=0,i=new Uint8Array(this.page*this.pages[0].length+this.pos),t=0;t<this.page;t++)i.set(this.pages[t],e),e+=this.pages[t].length;return i.set(this.pages[this.page].subarray(0,this.pos),e),i},writeByte:function(t){this.pos>=this.pages[this.page].length&&this.newPage(),this.pages[this.page][this.pos++]=t},writeUTFBytes:function(t){var e,i;for(e=0,i=t.length;e<i;e++)this.writeByte(t.charCodeAt(e))},writeBytes:function(t,e,i){var r,s;for(void 0===e&&(e=0),void 0===i&&(i=t.length),r=e;r<i;r++)this.writeByte(t[r])}},self.onmessage=function(t){var e,i,r,s;for(e=new GIFEncoder(t.data),r=0,i=e.encode();r<i.length;r++)s=i[r];self.postMessage(s)};`;
 
-const App: React.FC = () => {
-    const canvasRef = useRef<HTMLCanvasElement>(null);
-    const videoRef = useRef<HTMLVideoElement>(null);
-    const streamRef = useRef<MediaStream | null>(null);
+const App = () => {
+    const canvasRef = useRef(null);
+    const videoRef = useRef(null);
+    const streamRef = useRef(null);
     
     const [radius, setRadius] = useState(INITIAL_RADIUS);
     const [backgroundFadeColor, setBackgroundFadeColor] = useState(NORMAL_FADE_COLOR);
-    const [gifStatus, setGifStatus] = useState<GifStatus>('idle');
+    const [gifStatus, setGifStatus] = useState('idle');
     const [isPulsating, setIsPulsating] = useState(false);
     
     // State for AR and device detection
     const [isArMode, setIsArMode] = useState(false);
-    const [cameraFacingMode, setCameraFacingMode] = useState<FacingMode>('environment');
+    const [cameraFacingMode, setCameraFacingMode] = useState('environment');
     const [isTouchDevice, setIsTouchDevice] = useState(false);
 
 
     const circlePosRef = useRef({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
     const mousePosRef = useRef({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
-    const animationFrameId = useRef<number | null>(null);
-    const gifRecorderRef = useRef<any | null>(null);
-    const lastPinchDistance = useRef<number | null>(null);
+    const animationFrameId = useRef(null);
+    const gifRecorderRef = useRef(null);
+    const lastPinchDistance = useRef(null);
 
     const startGifRecording = useCallback(async () => {
         if (gifStatus !== 'idle') {
@@ -50,19 +51,17 @@ const App: React.FC = () => {
         }
          if (typeof GIF === 'undefined') {
             console.error("GIF library not loaded. Cannot record.");
-            alert("GIF library could not be loaded from the internet. Recording is disabled.");
+            alert("GIF library could not be loaded. Recording is disabled.");
             return;
         }
         
-        let workerObjectURL: string | null = null;
+        let workerObjectURL = null;
         try {
-            const workerScriptResponse = await fetch('https://esm.sh/gif.js.optimized/dist/gif.worker.js');
-            if (!workerScriptResponse.ok) throw new Error('Network response was not ok.');
-            const workerScriptBlob = new Blob([await workerScriptResponse.text()], { type: 'application/javascript' });
+            const workerScriptBlob = new Blob([GIF_WORKER_SCRIPT], { type: 'application/javascript' });
             workerObjectURL = URL.createObjectURL(workerScriptBlob);
         } catch (error) {
-            console.error("Failed to fetch or create GIF worker script:", error);
-            alert("Could not initialize the GIF recorder. Please check your internet connection and console for errors.");
+            console.error("Failed to create GIF worker from embedded script:", error);
+            alert("Could not initialize the GIF recorder due to an internal error.");
             return;
         }
 
@@ -75,7 +74,7 @@ const App: React.FC = () => {
             workerScript: workerObjectURL,
         });
 
-        gif.on('finished', (blob: Blob) => {
+        gif.on('finished', (blob) => {
             console.log('GIF rendering finished, preparing download.');
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -115,7 +114,7 @@ const App: React.FC = () => {
         // Detect if it's a touch device on mount
         setIsTouchDevice('ontouchstart' in window || navigator.maxTouchPoints > 0);
 
-        const handleKeyDown = (event: KeyboardEvent) => {
+        const handleKeyDown = (event) => {
             if (event.key === '+' || event.key === '=') setRadius(r => r + RADIUS_STEP);
             else if (event.key === '-') setRadius(r => Math.max(MIN_RADIUS, r - RADIUS_STEP));
             else if (event.key === '1') setBackgroundFadeColor(LONG_TAIL_FADE_COLOR);
@@ -124,23 +123,23 @@ const App: React.FC = () => {
             else if (event.key === 'g') startGifRecording();
         };
 
-        const handleWheel = (event: WheelEvent) => {
+        const handleWheel = (event) => {
             event.preventDefault();
             if (event.deltaY < 0) setRadius(r => r + RADIUS_STEP);
             else setRadius(r => Math.max(MIN_RADIUS, r - RADIUS_STEP));
         };
 
-        const handleMouseMove = (event: MouseEvent) => {
+        const handleMouseMove = (event) => {
             mousePosRef.current = { x: event.clientX, y: event.clientY };
         };
 
-        const getPinchDistance = (touches: TouchList) => {
+        const getPinchDistance = (touches) => {
             const dx = touches[0].clientX - touches[1].clientX;
             const dy = touches[0].clientY - touches[1].clientY;
             return Math.sqrt(dx * dx + dy * dy);
         };
 
-        const handleTouchStart = (event: TouchEvent) => {
+        const handleTouchStart = (event) => {
             if (event.touches.length > 0) mousePosRef.current = { x: event.touches[0].clientX, y: event.touches[0].clientY };
             if (event.touches.length === 2) {
                 event.preventDefault();
@@ -148,7 +147,7 @@ const App: React.FC = () => {
             }
         };
 
-        const handleTouchMove = (event: TouchEvent) => {
+        const handleTouchMove = (event) => {
             event.preventDefault();
             if (event.touches.length > 0) mousePosRef.current = { x: event.touches[0].clientX, y: event.touches[0].clientY };
             if (event.touches.length === 2 && lastPinchDistance.current !== null) {
@@ -159,7 +158,7 @@ const App: React.FC = () => {
             }
         };
 
-        const handleTouchEnd = (event: TouchEvent) => {
+        const handleTouchEnd = (event) => {
              if (event.touches.length < 2) lastPinchDistance.current = null;
         };
         
@@ -288,7 +287,7 @@ const App: React.FC = () => {
         }
     }
 
-    const buttonStyle: React.CSSProperties = {
+    const buttonStyle = {
         padding: '8px 12px',
         margin: '5px',
         fontSize: '14px',
@@ -299,14 +298,14 @@ const App: React.FC = () => {
         cursor: 'pointer',
     };
     
-    const inlineButtonStyle: React.CSSProperties = {
+    const inlineButtonStyle = {
         ...buttonStyle,
         padding: '2px 8px',
         margin: '0 4px',
         minWidth: '30px'
     };
     
-    const controlRowStyle: React.CSSProperties = {
+    const controlRowStyle = {
         display: 'flex',
         alignItems: 'center',
         marginBottom: '5px'
