@@ -16,6 +16,7 @@ const GLOW_BLUR = 15; // The size of the glow effect
 const GIF_DURATION = 10000; // 10 seconds in ms
 const PULSE_AMPLITUDE = 5; // How many pixels the radius will change by
 const PULSE_SPEED = 0.005; // Controls the speed of the pulsation
+const PINCH_SENSITIVITY = 1; // Controls how sensitive pinch-to-zoom is
 
 type GifStatus = 'idle' | 'recording' | 'rendering' | 'error';
 
@@ -30,6 +31,7 @@ const App: React.FC = () => {
     const mousePosRef = useRef({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
     const animationFrameId = useRef<number | null>(null);
     const gifRecorderRef = useRef<any | null>(null);
+    const lastPinchDistance = useRef<number | null>(null);
 
     // Effect to set up all window event listeners
     useEffect(() => {
@@ -55,7 +57,6 @@ const App: React.FC = () => {
                     return;
                 }
                 
-                // Fix for cross-origin worker error: fetch worker script and create a local blob URL.
                 let workerObjectURL: string | null = null;
                 try {
                     const workerScriptResponse = await fetch('https://esm.sh/gif.js.optimized/dist/gif.worker.js');
@@ -73,7 +74,7 @@ const App: React.FC = () => {
 
                 const gif = new GIF({
                     workers: 2,
-                    quality: 10, // Lower is better quality
+                    quality: 10,
                     workerScript: workerObjectURL,
                 });
 
@@ -88,7 +89,6 @@ const App: React.FC = () => {
                     document.body.removeChild(a);
                     URL.revokeObjectURL(url);
                     
-                    // Clean up the worker blob URL to prevent memory leaks
                     if (workerObjectURL) {
                         URL.revokeObjectURL(workerObjectURL);
                     }
@@ -126,19 +126,62 @@ const App: React.FC = () => {
         const handleMouseMove = (event: MouseEvent) => {
             mousePosRef.current = { x: event.clientX, y: event.clientY };
         };
+
+        const getPinchDistance = (touches: TouchList) => {
+            const dx = touches[0].clientX - touches[1].clientX;
+            const dy = touches[0].clientY - touches[1].clientY;
+            return Math.sqrt(dx * dx + dy * dy);
+        };
+
+        const handleTouchStart = (event: TouchEvent) => {
+            if (event.touches.length > 0) {
+                mousePosRef.current = { x: event.touches[0].clientX, y: event.touches[0].clientY };
+            }
+            if (event.touches.length === 2) {
+                event.preventDefault();
+                lastPinchDistance.current = getPinchDistance(event.touches);
+            }
+        };
+
+        const handleTouchMove = (event: TouchEvent) => {
+            event.preventDefault();
+            if (event.touches.length > 0) {
+                mousePosRef.current = { x: event.touches[0].clientX, y: event.touches[0].clientY };
+            }
+            if (event.touches.length === 2 && lastPinchDistance.current !== null) {
+                const newDist = getPinchDistance(event.touches);
+                const diff = newDist - lastPinchDistance.current;
+                
+                setRadius(prev => Math.max(MIN_RADIUS, prev + diff * PINCH_SENSITIVITY));
+                
+                lastPinchDistance.current = newDist;
+            }
+        };
+
+        const handleTouchEnd = (event: TouchEvent) => {
+             if (event.touches.length < 2) {
+                lastPinchDistance.current = null;
+            }
+        };
         
         window.addEventListener('keydown', handleKeyDown);
         window.addEventListener('wheel', handleWheel, { passive: false });
         window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('touchstart', handleTouchStart, { passive: false });
+        window.addEventListener('touchmove', handleTouchMove, { passive: false });
+        window.addEventListener('touchend', handleTouchEnd);
+
 
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
             window.removeEventListener('wheel', handleWheel);
             window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('touchstart', handleTouchStart);
+            window.removeEventListener('touchmove', handleTouchMove);
+            window.removeEventListener('touchend', handleTouchEnd);
         };
-    }, [gifStatus]); // Re-run effect if gifStatus changes to avoid stale closure
+    }, [gifStatus]);
 
-    // Main animation and drawing loop effect
     useEffect(() => {
         const canvas = canvasRef.current;
         const ctx = canvas?.getContext('2d');
@@ -165,7 +208,6 @@ const App: React.FC = () => {
             const pulseOffset = isPulsating ? Math.sin(Date.now() * PULSE_SPEED) * PULSE_AMPLITUDE : 0;
             const currentRadius = radius + pulseOffset;
 
-
             ctx.shadowBlur = GLOW_BLUR;
             ctx.shadowColor = CIRCLE_COLOR;
 
@@ -183,7 +225,7 @@ const App: React.FC = () => {
             ctx.shadowBlur = 0;
 
             if (gifStatus === 'recording' && gifRecorderRef.current) {
-                gifRecorderRef.current.addFrame(ctx.canvas, { copy: true, delay: 16 }); // ~60fps
+                gifRecorderRef.current.addFrame(ctx.canvas, { copy: true, delay: 16 });
             }
 
             animationFrameId.current = requestAnimationFrame(animate);
@@ -222,12 +264,16 @@ const App: React.FC = () => {
               color: 'rgba(255, 255, 255, 0.7)',
               fontFamily: 'monospace',
               fontSize: '14px',
-              pointerEvents: 'none'
+              pointerEvents: 'none',
+              textShadow: '1px 1px 2px #000',
           }}>
-              <div>Radius: {radius} ([+]/[-])</div>
+              <div>Radius: {Math.round(radius)} ([+]/[-])</div>
               <div>Tail: {backgroundFadeColor === NORMAL_FADE_COLOR ? 'Normal' : 'Long'} ([0]/[1])</div>
               <div>Pulsate: {isPulsating ? 'On' : 'Off'} ([3])</div>
               <div>Record GIF: [g]</div>
+              <div style={{ marginTop: '10px', color: 'rgba(255, 255, 255, 0.6)' }}>
+                  Touch: Drag to move, Pinch to resize
+              </div>
               {renderGifStatus()}
           </div>
       </div>
