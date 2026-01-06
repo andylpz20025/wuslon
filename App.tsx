@@ -31,11 +31,10 @@ const App: React.FC = () => {
     const [gifStatus, setGifStatus] = useState<GifStatus>('idle');
     const [isPulsating, setIsPulsating] = useState(false);
     
-    // New state for AR and on-screen controls
+    // State for AR and device detection
     const [isArMode, setIsArMode] = useState(false);
     const [cameraFacingMode, setCameraFacingMode] = useState<FacingMode>('environment');
     const [isTouchDevice, setIsTouchDevice] = useState(false);
-    const [showControls, setShowControls] = useState(false);
 
 
     const circlePosRef = useRef({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
@@ -299,20 +298,19 @@ const App: React.FC = () => {
         borderRadius: '5px',
         cursor: 'pointer',
     };
-
-    const controlPanelStyle: React.CSSProperties = {
-        position: 'absolute',
-        bottom: '80px',
-        left: '10px',
-        backgroundColor: 'rgba(0, 0, 0, 0.6)',
-        borderRadius: '8px',
-        padding: '10px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '8px',
+    
+    const inlineButtonStyle: React.CSSProperties = {
+        ...buttonStyle,
+        padding: '2px 8px',
+        margin: '0 4px',
+        minWidth: '30px'
     };
     
-    const controlButtonStyle: React.CSSProperties = { ...buttonStyle, width: '100%', boxSizing: 'border-box' };
+    const controlRowStyle: React.CSSProperties = {
+        display: 'flex',
+        alignItems: 'center',
+        marginBottom: '5px'
+    };
 
     return (
       <div style={{ position: 'relative', width: '100%', height: '100%' }}>
@@ -320,21 +318,9 @@ const App: React.FC = () => {
           <video ref={videoRef} autoPlay playsInline style={{ display: 'none' }} />
           
           <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 2, display: 'flex' }}>
-              {isTouchDevice && <button style={buttonStyle} onClick={() => setShowControls(s => !s)}>{showControls ? 'Hide' : 'Show'} Controls</button>}
               <button style={buttonStyle} onClick={() => setIsArMode(a => !a)}>{isArMode ? 'Exit' : 'Enter'} AR</button>
               {isArMode && <button style={buttonStyle} onClick={() => setCameraFacingMode(m => m === 'user' ? 'environment' : 'user')}>Switch Cam</button>}
           </div>
-
-          {showControls && isTouchDevice && (
-              <div style={controlPanelStyle}>
-                  <button style={controlButtonStyle} onClick={() => setRadius(r => r + RADIUS_STEP)}>Radius +</button>
-                  <button style={controlButtonStyle} onClick={() => setRadius(r => Math.max(MIN_RADIUS, r - RADIUS_STEP))}>Radius -</button>
-                  <button style={controlButtonStyle} onClick={() => setBackgroundFadeColor(NORMAL_FADE_COLOR)}>Tail: Normal</button>
-                  <button style={controlButtonStyle} onClick={() => setBackgroundFadeColor(LONG_TAIL_FADE_COLOR)}>Tail: Long</button>
-                  <button style={controlButtonStyle} onClick={() => setIsPulsating(p => !p)}>Pulsate: {isPulsating ? 'On' : 'Off'}</button>
-                  <button style={controlButtonStyle} onClick={startGifRecording}>Record GIF</button>
-              </div>
-          )}
 
           <div style={{
               position: 'absolute',
@@ -343,15 +329,53 @@ const App: React.FC = () => {
               color: 'rgba(255, 255, 255, 0.9)',
               fontFamily: 'monospace',
               fontSize: '14px',
-              pointerEvents: 'none',
               textShadow: '1px 1px 3px #000',
               zIndex: 2
           }}>
-              <div>Radius: {Math.round(radius)} ([+]/[-])</div>
-              <div>Tail: {backgroundFadeColor === NORMAL_FADE_COLOR ? 'Normal' : 'Long'} ([0]/[1])</div>
-              <div>Pulsate: {isPulsating ? 'On' : 'Off'} ([3])</div>
-              <div>Record GIF: [g]</div>
-              <div style={{ marginTop: '10px', color: 'rgba(255, 255, 255, 0.7)' }}>
+              <div style={controlRowStyle}>
+                  Radius: {Math.round(radius)} 
+                  {isTouchDevice ? (
+                      <span style={{ marginLeft: '10px'}}>
+                          <button style={inlineButtonStyle} onClick={() => setRadius(r => Math.max(MIN_RADIUS, r - RADIUS_STEP))}>-</button>
+                          <button style={inlineButtonStyle} onClick={() => setRadius(r => r + RADIUS_STEP)}>+</button>
+                      </span>
+                  ) : (
+                      <span> ([+]/[-])</span>
+                  )}
+              </div>
+              <div style={controlRowStyle}>
+                  Tail: {backgroundFadeColor === NORMAL_FADE_COLOR ? 'Normal' : 'Long'}
+                  {isTouchDevice ? (
+                      <span style={{ marginLeft: '10px'}}>
+                          <button style={inlineButtonStyle} onClick={() => setBackgroundFadeColor(NORMAL_FADE_COLOR)}>0</button>
+                          <button style={inlineButtonStyle} onClick={() => setBackgroundFadeColor(LONG_TAIL_FADE_COLOR)}>1</button>
+                      </span>
+                  ) : (
+                      <span> ([0]/[1])</span>
+                  )}
+              </div>
+              <div style={controlRowStyle}>
+                  Pulsate: {isPulsating ? 'On' : 'Off'}
+                  {isTouchDevice ? (
+                      <span style={{ marginLeft: '10px'}}>
+                          <button style={inlineButtonStyle} onClick={() => setIsPulsating(p => !p)}>Toggle</button>
+                      </span>
+                  ) : (
+                      <span> ([3])</span>
+                  )}
+              </div>
+               <div style={controlRowStyle}>
+                  Record GIF
+                  {isTouchDevice ? (
+                      <span style={{ marginLeft: '10px'}}>
+                          <button style={inlineButtonStyle} onClick={startGifRecording}>Start</button>
+                      </span>
+                  ) : (
+                      <span> ([g])</span>
+                  )}
+              </div>
+
+              <div style={{ marginTop: '10px', color: 'rgba(255, 255, 255, 0.7)', pointerEvents: 'none' }}>
                   Touch: Drag to move, Pinch to resize
               </div>
               {renderGifStatus()}
